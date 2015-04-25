@@ -1,4 +1,4 @@
-# machinelearning
+# Practical Machine Learning - Course Project
 Coursera - Practical Machine Learning - Course Project
 
 This is the repository for the Coursera Practical Machine Learning Course Project. 
