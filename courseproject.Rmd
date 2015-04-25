@@ -1,0 +1,143 @@
+---
+title: "Coursera - Practical Machine Learning - Course Project"
+author: "Rafael Encinas"
+output: html_document
+---
+
+## Overview
+
+This is the report for the Course Project of Practical Machine Learning Class, in Coursera.org. The goal for the project is to predict the manner  in which people did some exercises. Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+In this project, we used data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. 
+
+
+## Reading and Cleaning Data
+
+In this section, it will be demonstrated the that were used to read data into [R] and clean the variables that will not be used in the prediction model.
+
+First, we need to read data into [R]. The files were downloaded from the links provided by the Course:
+
+- https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+- https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+```{r}
+training <- read.csv("pml-training.csv", header=T, na.strings="NA")
+testing <- read.csv("pml-testing.csv", header=T, na.strings="NA")
+```
+
+Let's look some carachteristics of the data:
+
+```{r}
+str(training)
+head(training[,1:10])
+```
+
+The first seven columns are ID variables, so we decided to exclude them:
+
+```{r}
+training <- training[,-c(1:7)]
+testing <- testing[,-c(1:7)]
+```
+
+The data contains some variables that have a high number of missing values (NA). Here, we can see that this variables have almost 98% of their rows with NAs 
+
+```{r}
+sumNAs <- apply(training,2,function(x) {sum(is.na(x))})
+anyNAs <- sumNAs[which(sumNAs > 0)]
+anyNAs <- anyNAs / nrow(training)
+unique(anyNAs)
+```
+
+This variables were excluded for the analysis:
+
+```{r}
+training <- training[which(sumNAs == 0)]
+testing <- testing[which(sumNAs == 0)]
+```
+
+There were 67 variables that were excluded:
+
+```{r}
+anyNAs
+```
+
+Other variables that are not usefull for the model are the ones tha have near zero variance.
+
+```{r}
+library(caret)
+nsv <- nearZeroVar(training,saveMetrics=TRUE)
+nsv$seq <- seq(1:nrow(nsv))
+nonzerovar <- nsv[which(nsv$nzv == FALSE),5] 
+training <- training[nonzerovar]
+testing <- testing[nonzerovar]
+```
+
+33 variables were excluded:
+
+```{r}
+rownames(nsv[which(nsv$nzv == TRUE),])
+```
+
+Let's look at some variables:
+
+```{r, fig.height=8}
+m <- matrix(c(1,2,3,4,5,6,7,7,7),nrow = 3,ncol = 3,byrow = TRUE)
+layout(mat = m,heights = c(0.4,0.4,0.3))
+par(oma=c(0,0,0,0))
+plot(training$roll_belt, col=training$classe, main="roll_belt", xlab="", ylab="")
+plot(training$yaw_belt, col=training$classe, main="yaw_belt", xlab="", ylab="")
+plot(training$roll_forearm, col=training$classe, main="roll_forearm", xlab="", ylab="")
+plot(training$accel_dumbbell_y, col=training$classe, main="accel_dumbbell_y", xlab="", ylab="")
+plot(training$gyros_belt_z, col=training$classe, main="gyros_belt_z", xlab="", ylab="")
+plot(training$yaw_dumbbell, col=training$classe, main="yaw_dumbbell", xlab="", ylab="")
+plot(1, type = "n", axes=FALSE, xlab="", ylab="")
+legend(x = "top",inset = 0,c("A", "B", "C", "D", "E"), lty=1, lwd=6.5, col=c("black", "red", "green", "blue", "cyan"), horiz=TRUE, title = "Classe")
+```
+
+
+
+## Prediction Model
+
+The data provided by the course consists in two files: training and testing. But the testing file has only 20 observations. So we decided to create a testing data inside the training data. Cross validation occurs when we estimate the test set accuracy with the training set. First, we need to split the training set into training and testing sets. Second, we build a model on the new training set. third, we evaluate on the test set. 
+
+Below is the split of the traing set into trainData and testData:
+
+```{r}
+set.seed(12345)
+inTrain <- createDataPartition(y=training$classe, p=0.6, list=F)
+trainData <- training[inTrain,]
+testData <- training[-inTrain,]
+```
+
+Now, we can build the prediction model in the trainingData. The method chosen for the prediction was "random forests".
+
+```{r, cache=TRUE}
+train_control <- trainControl(method="boot", number=10, allowParallel=TRUE)
+modFit <- train(classe ~ .,method="rf", data=trainData, trControl=train_control, ntree=250)
+modFit
+```
+
+Than, we can see the accuracy of the model in the testData:
+
+```{r}
+pred <- predict(modFit,testData)
+confusionMatrix(pred, testData$classe)
+```
+
+The "out of sample error" is the error rate that we get on a new dataset, called sometimes "generaliztion error". Above, we can see that the accuracy of the model in the testData is 99,3%, so we estimate that the out of sample error should be 0,7%. 
+
+With the function "varImp()" we can see the importance of each variable in the model:
+
+```{r}
+varImp(modFit)
+```
+
+## Apply prediction model to test data
+The second part of the assignment consists in apllying the prediction model to a test data, which has 20 test cases.
+
+```{r}
+pred2 <- predict(modFit,testing)
+```
+
+All predictions submitted to Coursera were correct.
+
